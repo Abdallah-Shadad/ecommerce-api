@@ -3,6 +3,30 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# ==========================================
+# E-Commerce Project Custom Ignores
+# ==========================================
+
+# 1. Local File Uploads (Product Images)
+src/ECommerce.API/wwwroot/uploads/*
+!src/ECommerce.API/wwwroot/uploads/.gitkeep
+
+# 2. Local Database & SQLite (if used for local testing)
+*.db
+*.db-shm
+*.db-wal
+
+# 3. Environment & Local AppSettings Overrides
+appsettings.*.local.json
+appsettings.Local.json
+appsettings.Development.json
+http-client.env.json
+*.http.user
+
+# 4. Logs folder
+logs/
+*.log
+
 # dotenv files
 .env
 
