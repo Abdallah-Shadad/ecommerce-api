@@ -506,3 +506,5 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+/src/ECommerce.API/appsettings.Development.json
+/src/ECommerce.API/appsettings.Development.json
