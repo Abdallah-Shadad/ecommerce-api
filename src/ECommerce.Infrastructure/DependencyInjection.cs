@@ -1,4 +1,8 @@
-﻿using ECommerce.Infrastructure.Persistence;
+﻿using ECommerce.Application.Interfaces.Persistence;
+using ECommerce.Domain.Entities.Identity;
+using ECommerce.Infrastructure.Persistence;
+using ECommerce.Infrastructure.Persistence.Repositories;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +18,7 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
+        // DbContext Registration
         services.AddDbContext<AppDbContext>(options =>
         {
             options.UseSqlServer(connectionString, sqlOptions =>
@@ -26,6 +31,23 @@ public static class DependencyInjection
                 sqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName);
             });
         });
+
+        // Identity Services Registration
+        services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
+        {
+            options.Password.RequireDigit = true;
+            options.Password.RequireLowercase = true;
+            options.Password.RequireUppercase = true;
+            options.Password.RequireNonAlphanumeric = true;
+            options.Password.RequiredLength = 6;
+            options.User.RequireUniqueEmail = true;
+        })
+        .AddEntityFrameworkStores<AppDbContext>()
+        .AddDefaultTokenProviders();
+
+        // Repositories & Unit of Work Registration
+        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;
     }

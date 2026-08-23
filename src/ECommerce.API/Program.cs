@@ -24,4 +24,11 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Seed Identity Roles and Users
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    await ECommerce.Infrastructure.Persistence.IdentitySeeder.SeedAsync(services);
+}
+
 app.Run();
