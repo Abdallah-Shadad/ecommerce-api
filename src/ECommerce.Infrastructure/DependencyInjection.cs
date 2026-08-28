@@ -1,7 +1,9 @@
 ﻿using ECommerce.Application.Interfaces.Persistence;
+using ECommerce.Application.Interfaces.Services;
 using ECommerce.Domain.Entities.Identity;
 using ECommerce.Infrastructure.Persistence;
 using ECommerce.Infrastructure.Persistence.Repositories;
+using ECommerce.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -48,6 +50,10 @@ public static class DependencyInjection
         // Repositories & Unit of Work Registration
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // Services Registration
+        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddScoped<IAuthService, AuthService>();
 
         return services;
     }
