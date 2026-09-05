@@ -1,5 +1,6 @@
 ﻿using ECommerce.Application.Interfaces.Persistence;
 using ECommerce.Application.Interfaces.Services;
+using ECommerce.Application.Services;
 using ECommerce.Domain.Entities.Identity;
 using ECommerce.Infrastructure.Persistence;
 using ECommerce.Infrastructure.Persistence.Repositories;
@@ -54,6 +55,9 @@ public static class DependencyInjection
         // Services Registration
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
         return services;
     }

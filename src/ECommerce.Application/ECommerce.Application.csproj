@@ -13,11 +13,8 @@
 
   <ItemGroup>
     <Folder Include="DTOs\Cart\" />
-    <Folder Include="DTOs\Category\" />
     <Folder Include="DTOs\Order\" />
-    <Folder Include="DTOs\Product\" />
     <Folder Include="Mappings\" />
-    <Folder Include="Services\" />
     <Folder Include="Validators\Auth\" />
     <Folder Include="Validators\Cart\" />
     <Folder Include="Validators\Product\" />
