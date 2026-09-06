@@ -13,6 +13,6 @@ public interface IUnitOfWork : IAsyncDisposable
     IRepository<Order> Orders { get; }
 
     Task<int> SaveChangesAsync();
-    Task<IDbContextTransaction> BeginTransactionAsync();
+    Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
     IExecutionStrategy CreateExecutionStrategy();
 }

@@ -29,7 +29,7 @@ public class UnitOfWork : IUnitOfWork
         return await _context.SaveChangesAsync();
     }
 
-    public async Task<IDbContextTransaction> BeginTransactionAsync()
+    public async Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken)
     {
         return await _context.Database.BeginTransactionAsync();
     }
