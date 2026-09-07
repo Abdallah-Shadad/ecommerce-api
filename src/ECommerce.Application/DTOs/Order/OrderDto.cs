@@ -1,7 +1,8 @@
-﻿namespace ECommerce.Application.DTOs.Order;
+namespace ECommerce.Application.DTOs.Order;
 
 public record OrderDto(
     int Id,
+    string OrderNumber,
     decimal TotalAmount,
     string Status,
     string ShippingAddress,

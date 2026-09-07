@@ -1,4 +1,4 @@
-﻿using ECommerce.Application.DTOs.Auth;
+using ECommerce.Application.DTOs.Auth;
 using ECommerce.Application.Interfaces.Services;
 using ECommerce.Domain.Entities.Cart;
 using ECommerce.Domain.Entities.Identity;
@@ -13,18 +13,18 @@ public class AuthService : IAuthService
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole<Guid>> _roleManager;
-    private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly ITokenService _tokenService;
     private readonly AppDbContext _dbContext;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole<Guid>> roleManager,
-        IJwtTokenGenerator jwtTokenGenerator,
+        ITokenService tokenService,
         AppDbContext dbContext)
     {
         _userManager = userManager;
         _roleManager = roleManager;
-        _jwtTokenGenerator = jwtTokenGenerator;
+        _tokenService = tokenService;
         _dbContext = dbContext;
     }
 
@@ -34,13 +34,9 @@ public class AuthService : IAuthService
         if (existingEmail != null)
             throw new ConflictException("Email is already registered.");
 
-        var existingUserName = await _userManager.FindByNameAsync(request.UserName);
-        if (existingUserName != null)
-            throw new ConflictException("Username is already taken.");
-
         var user = new ApplicationUser
         {
-            UserName = request.UserName,
+            UserName = request.Email,
             Email = request.Email,
             FullName = request.FullName,
             CreatedAtUtc = DateTime.UtcNow
@@ -53,15 +49,18 @@ public class AuthService : IAuthService
             throw new ConflictException($"User registration failed: {errors}");
         }
 
-        if (await _roleManager.RoleExistsAsync("Customer"))
+        if (!await _roleManager.RoleExistsAsync("Customer"))
         {
-            await _userManager.AddToRoleAsync(user, "Customer");
+            await _roleManager.CreateAsync(new IdentityRole<Guid>("Customer"));
         }
+        await _userManager.AddToRoleAsync(user, "Customer");
 
+        // 1:1 Invariant: Establish Cart at registration
         var cart = new Cart { UserId = user.Id };
         _dbContext.Set<Cart>().Add(cart);
         await _dbContext.SaveChangesAsync();
 
+        // Auto-login UX: Return access and refresh tokens
         return await GenerateAuthResponseAsync(user);
     }
 
@@ -88,6 +87,7 @@ public class AuthService : IAuthService
 
         if (existingToken.RevokedAtUtc != null)
         {
+            // Reuse detection: Grace period of 15 seconds for network latency
             var gracePeriod = TimeSpan.FromSeconds(15);
             var isWithinGracePeriod = DateTime.UtcNow - existingToken.RevokedAtUtc <= gracePeriod;
 
@@ -99,7 +99,7 @@ public class AuthService : IAuthService
                 if (replacementToken != null && replacementToken.IsActive)
                 {
                     var userRoles = await _userManager.GetRolesAsync(existingToken.User!);
-                    var newAccessToken = _jwtTokenGenerator.GenerateAccessToken(existingToken.User!, userRoles);
+                    var newAccessToken = _tokenService.GenerateAccessToken(existingToken.User!, userRoles);
 
                     return new AuthResponse(
                         newAccessToken,
@@ -112,6 +112,7 @@ public class AuthService : IAuthService
                 }
             }
 
+            // Revoked token reused beyond grace period: Compromise detected! Revoke all tokens for user.
             var activeTokens = await _dbContext.Set<RefreshToken>()
                 .Where(r => r.UserId == existingToken.UserId && r.RevokedAtUtc == null)
                 .ToListAsync();
@@ -132,7 +133,7 @@ public class AuthService : IAuthService
         if (user == null)
             throw new UnauthorizedException("Associated user not found.");
 
-        var newRefreshToken = _jwtTokenGenerator.GenerateRefreshToken();
+        var newRefreshToken = _tokenService.GenerateRefreshToken();
         newRefreshToken.UserId = user.Id;
 
         existingToken.RevokedAtUtc = DateTime.UtcNow;
@@ -142,7 +143,7 @@ public class AuthService : IAuthService
         await _dbContext.SaveChangesAsync();
 
         var roles = await _userManager.GetRolesAsync(user);
-        var accessToken = _jwtTokenGenerator.GenerateAccessToken(user, roles);
+        var accessToken = _tokenService.GenerateAccessToken(user, roles);
 
         return new AuthResponse(
             accessToken,
@@ -174,9 +175,9 @@ public class AuthService : IAuthService
     private async Task<AuthResponse> GenerateAuthResponseAsync(ApplicationUser user)
     {
         var roles = await _userManager.GetRolesAsync(user);
-        var accessToken = _jwtTokenGenerator.GenerateAccessToken(user, roles);
+        var accessToken = _tokenService.GenerateAccessToken(user, roles);
 
-        var refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
+        var refreshToken = _tokenService.GenerateRefreshToken();
         refreshToken.UserId = user.Id;
 
         _dbContext.Set<RefreshToken>().Add(refreshToken);

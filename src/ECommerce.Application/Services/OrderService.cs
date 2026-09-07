@@ -1,4 +1,4 @@
-﻿using ECommerce.Application.DTOs.Order;
+using ECommerce.Application.DTOs.Order;
 using ECommerce.Application.Interfaces.Persistence;
 using ECommerce.Application.Interfaces.Services;
 using ECommerce.Domain.Entities.Ordering;
@@ -169,6 +169,7 @@ public class OrderService : IOrderService
 
         return new OrderDto(
             order.Id,
+            order.OrderNumber,
             order.TotalAmount,
             order.Status.ToString(),
             order.ShippingAddress,

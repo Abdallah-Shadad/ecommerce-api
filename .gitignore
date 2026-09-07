@@ -27,6 +27,9 @@ http-client.env.json
 logs/
 *.log
 
+# Docs
+Docs/
+
 # dotenv files
 .env
 

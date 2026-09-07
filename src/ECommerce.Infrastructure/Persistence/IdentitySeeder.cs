@@ -1,5 +1,7 @@
-﻿using ECommerce.Domain.Entities.Identity;
+using ECommerce.Domain.Entities.Cart;
+using ECommerce.Domain.Entities.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ECommerce.Infrastructure.Persistence;
@@ -10,8 +12,9 @@ public static class IdentitySeeder
     {
         var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var dbContext = serviceProvider.GetRequiredService<AppDbContext>();
 
-        // initialize roles
+        // 1. Initialize Roles
         string[] roles = ["Admin", "Customer"];
         foreach (var role in roles)
         {
@@ -21,7 +24,7 @@ public static class IdentitySeeder
             }
         }
 
-        // main admin user
+        // 2. Seed Default Admin User
         var adminEmail = "abdallah.shadad@ecommerce.com";
         var existingAdmin = await userManager.FindByEmailAsync(adminEmail);
         if (existingAdmin == null)
@@ -41,7 +44,7 @@ public static class IdentitySeeder
             }
         }
 
-        // custmoers 
+        // 3. Seed Demo Customers
         var dummyCustomers = new List<(string Email, string FullName)>
         {
             ("adel.emam@ecommerce.com", "Adel Emam"),
@@ -91,8 +94,14 @@ public static class IdentitySeeder
                 if (result.Succeeded)
                 {
                     await userManager.AddToRoleAsync(customer, "Customer");
+
+                    // Establish 1:1 Cart invariant for seeded user
+                    var cart = new Cart { UserId = customer.Id };
+                    dbContext.Set<Cart>().Add(cart);
                 }
             }
         }
+
+        await dbContext.SaveChangesAsync();
     }
 }

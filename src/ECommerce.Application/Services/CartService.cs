@@ -1,4 +1,4 @@
-﻿using ECommerce.Application.DTOs.Cart;
+using ECommerce.Application.DTOs.Cart;
 using ECommerce.Application.Interfaces.Persistence;
 using ECommerce.Application.Interfaces.Services;
 using ECommerce.Domain.Entities.Cart;
@@ -82,7 +82,7 @@ public class CartService : ICartService
         if (item == null)
             throw new NotFoundException($"Product with ID {productId} is not present in the cart.");
 
-        if (request.Quantity > item.Product.StockQuantity)
+        if (item.Product != null && request.Quantity > item.Product.StockQuantity)
         {
             throw new ConflictException(
                 $"Requested quantity ({request.Quantity}) exceeds available stock ({item.Product.StockQuantity}).");
@@ -126,7 +126,7 @@ public class CartService : ICartService
     {
         var cart = await _unitOfWork.Carts.Query()
             .Include(c => c.Items)
-                .ThenInclude(i => i.Product)
+                .ThenInclude(i => i.Product!)
                     .ThenInclude(p => p.Images)
             .FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
 
@@ -149,11 +149,11 @@ public class CartService : ICartService
     {
         var items = cart.Items.Select(i => new CartItemDto(
             i.ProductId,
-            i.Product.Name,
-            i.Product.Images.FirstOrDefault()?.ImageUrl,
-            i.Product.Price,
+            i.Product?.Name ?? string.Empty,
+            i.Product?.Images.FirstOrDefault()?.ImageUrl,
+            i.Product?.Price ?? i.UnitPriceSnapshot,
             i.UnitPriceSnapshot,
-            i.UnitPriceSnapshot != i.Product.Price,
+            i.Product != null && i.UnitPriceSnapshot != i.Product.Price,
             i.Quantity,
             i.Quantity * i.UnitPriceSnapshot
         )).ToList();

@@ -1,94 +1,65 @@
-using ECommerce.Application.Common.Models;
+using ECommerce.API.Extensions;
+using ECommerce.API.Middleware;
+using ECommerce.Application;
 using ECommerce.Infrastructure;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Text;
+using ECommerce.Infrastructure.Persistence;
+using ECommerce.Shared.Constants;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Infrastructure Services
+// 1. Register Layer Services
+builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.Services.AddApiServices(builder.Configuration);
 
-// JWT Options & Authentication
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
-    ?? throw new InvalidOperationException("Jwt configuration section is missing.");
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidIssuer = jwtOptions.Issuer,
-        ValidateAudience = true,
-        ValidAudience = jwtOptions.Audience,
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
-    };
-});
-
-builder.Services.AddAuthorization();
 builder.Services.AddControllers();
-
-// Swagger Configuration with Auto-Bearer
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.SwaggerDoc("v1", new OpenApiInfo { Title = "ECommerce API", Version = "v1" });
-
-    // Add JWT Authentication to Swagger
-    var securityScheme = new OpenApiSecurityScheme
-    {
-        Name = "JWT Authentication",
-        Description = "Enter your JWT token directly without typing 'Bearer '",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Reference = new OpenApiReference
-        {
-            Id = JwtBearerDefaults.AuthenticationScheme,
-            Type = ReferenceType.SecurityScheme
-        }
-    };
-
-    options.AddSecurityDefinition(securityScheme.Reference.Id, securityScheme);
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        { securityScheme, Array.Empty<string>() }
-    });
-});
 
 var app = builder.Build();
 
+// 2. Exception Handling Middleware (First in Pipeline)
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// 3. Environment-specific Configuration
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ECommerce API v1");
+    });
+}
+else
+{
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+// 4. Security & Routing Middleware
+app.UseCors(AppConstants.Cors.PolicyName);
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// Seed Initial Data
+// 5. Seed Initial Data (Roles, Admin, Demo Customers & 1:1 Carts)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    await ECommerce.Infrastructure.Persistence.IdentitySeeder.SeedAsync(services);
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        await IdentitySeeder.SeedAsync(services);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while seeding initial database state.");
+    }
 }
 
 app.Run();
+
+// For Integration Test WebApplicationFactory support
+public partial class Program { }

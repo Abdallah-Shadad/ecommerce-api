@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using ECommerce.Application.Common.Models;
 using ECommerce.Application.DTOs.Product;
 using ECommerce.Application.Interfaces.Persistence;
@@ -76,7 +76,7 @@ public class ProductService : IProductService
                 p.StockQuantity,
                 p.SKU,
                 p.CategoryId,
-                p.Category.Name,
+                p.Category != null ? p.Category.Name : string.Empty,
                 p.Images.Select(img => img.ImageUrl).ToList()
             ))
             .ToListAsync(cancellationToken);
@@ -98,7 +98,7 @@ public class ProductService : IProductService
                 p.StockQuantity,
                 p.SKU,
                 p.CategoryId,
-                p.Category.Name,
+                p.Category != null ? p.Category.Name : string.Empty,
                 p.Images.Select(img => img.ImageUrl).ToList()
             ))
             .FirstOrDefaultAsync(cancellationToken);

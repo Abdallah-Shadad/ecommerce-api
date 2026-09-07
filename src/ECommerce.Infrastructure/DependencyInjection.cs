@@ -1,6 +1,5 @@
-﻿using ECommerce.Application.Interfaces.Persistence;
+using ECommerce.Application.Interfaces.Persistence;
 using ECommerce.Application.Interfaces.Services;
-using ECommerce.Application.Services;
 using ECommerce.Domain.Entities.Identity;
 using ECommerce.Infrastructure.Persistence;
 using ECommerce.Infrastructure.Persistence.Repositories;
@@ -15,13 +14,13 @@ namespace ECommerce.Infrastructure;
 public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(
-            this IServiceCollection services,
-            IConfiguration configuration)
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
-        // DbContext Registration
+        // 1. DbContext Registration
         services.AddDbContext<AppDbContext>(options =>
         {
             options.UseSqlServer(connectionString, sqlOptions =>
@@ -35,32 +34,29 @@ public static class DependencyInjection
             });
         });
 
-        // Identity Services Registration
+        // 2. Identity Services Registration (min length 8, require digit/upper/non-alpha per SRS §4.1/§6.6)
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
         {
             options.Password.RequireDigit = true;
             options.Password.RequireLowercase = true;
             options.Password.RequireUppercase = true;
             options.Password.RequireNonAlphanumeric = true;
-            options.Password.RequiredLength = 6;
+            options.Password.RequiredLength = 8;
             options.User.RequireUniqueEmail = true;
         })
         .AddEntityFrameworkStores<AppDbContext>()
         .AddDefaultTokenProviders();
 
-        // Repositories & Unit of Work Registration
+        // 3. Repositories & Unit of Work
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        // Services Registration
-        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        // 4. Infrastructure Services
+        services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<IJwtTokenGenerator, TokenService>();
         services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<ICategoryService, CategoryService>();
-        services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
-        services.AddScoped<ICartService, CartService>();
         services.AddScoped<IPaymentService, MockPaymentService>();
-        services.AddScoped<IOrderService, OrderService>();
 
         return services;
     }
