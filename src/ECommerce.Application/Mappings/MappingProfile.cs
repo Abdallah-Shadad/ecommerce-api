@@ -29,24 +29,35 @@ public class MappingProfile : Profile
 
         // Cart Mappings
         CreateMap<CartItem, CartItemDto>()
-            .ForCtorParam("ProductName", opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty))
-            .ForCtorParam("ProductImageUrl", opt => opt.MapFrom(src => src.Product != null && src.Product.Images.Any() ? src.Product.Images.First().ImageUrl : null))
-            .ForCtorParam("LiveUnitPrice", opt => opt.MapFrom(src => src.Product != null ? src.Product.Price : src.UnitPriceSnapshot))
-            .ForCtorParam("PriceChanged", opt => opt.MapFrom(src => src.Product != null && src.UnitPriceSnapshot != src.Product.Price))
-            .ForCtorParam("TotalPrice", opt => opt.MapFrom(src => src.Quantity * src.UnitPriceSnapshot));
+            .ForCtorParam(nameof(CartItemDto.ProductId), opt => opt.MapFrom(src => src.ProductId))
+            .ForCtorParam(nameof(CartItemDto.ProductName), opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty))
+            .ForCtorParam(nameof(CartItemDto.ProductImageUrl), opt => opt.MapFrom(src => src.Product != null && src.Product.Images.Any() ? src.Product.Images.First().ImageUrl : null))
+            .ForCtorParam(nameof(CartItemDto.CurrentPrice), opt => opt.MapFrom(src => src.Product != null ? src.Product.Price : src.UnitPriceSnapshot))
+            .ForCtorParam(nameof(CartItemDto.UnitPriceSnapshot), opt => opt.MapFrom(src => src.UnitPriceSnapshot))
+            .ForCtorParam(nameof(CartItemDto.HasPriceChanged), opt => opt.MapFrom(src => src.Product != null && src.UnitPriceSnapshot != src.Product.Price))
+            .ForCtorParam(nameof(CartItemDto.Quantity), opt => opt.MapFrom(src => src.Quantity))
+            .ForCtorParam(nameof(CartItemDto.TotalPrice), opt => opt.MapFrom(src => src.Quantity * src.UnitPriceSnapshot));
 
         CreateMap<Cart, CartDto>()
-            .ForCtorParam("Items", opt => opt.MapFrom(src => src.Items))
-            .ForCtorParam("Subtotal", opt => opt.MapFrom(src => src.Items.Sum(i => i.Quantity * i.UnitPriceSnapshot)));
+            .ForCtorParam(nameof(CartDto.Id), opt => opt.MapFrom(src => src.Id))
+            .ForCtorParam(nameof(CartDto.Items), opt => opt.MapFrom(src => src.Items))
+            .ForCtorParam(nameof(CartDto.Subtotal), opt => opt.MapFrom(src => src.Items.Sum(i => i.Quantity * i.UnitPriceSnapshot)));
 
         // Order Mappings
         CreateMap<OrderItem, OrderItemDto>()
-            .ForCtorParam("ProductName", opt => opt.MapFrom(src => src.ProductNameSnapshot))
-            .ForCtorParam("TotalPrice", opt => opt.MapFrom(src => src.UnitPrice * src.Quantity));
+            .ForCtorParam(nameof(OrderItemDto.ProductId), opt => opt.MapFrom(src => src.ProductId))
+            .ForCtorParam(nameof(OrderItemDto.ProductName), opt => opt.MapFrom(src => src.ProductNameSnapshot))
+            .ForCtorParam(nameof(OrderItemDto.UnitPrice), opt => opt.MapFrom(src => src.UnitPrice))
+            .ForCtorParam(nameof(OrderItemDto.Quantity), opt => opt.MapFrom(src => src.Quantity))
+            .ForCtorParam(nameof(OrderItemDto.TotalPrice), opt => opt.MapFrom(src => src.UnitPrice * src.Quantity));
 
         CreateMap<Order, OrderDto>()
-            .ForCtorParam("Status", opt => opt.MapFrom(src => src.Status.ToString()))
-            .ForCtorParam("CreatedAt", opt => opt.MapFrom(src => src.CreatedAtUtc))
-            .ForCtorParam("Items", opt => opt.MapFrom(src => src.Items));
+            .ForCtorParam(nameof(OrderDto.Id), opt => opt.MapFrom(src => src.Id))
+            .ForCtorParam(nameof(OrderDto.OrderNumber), opt => opt.MapFrom(src => src.OrderNumber))
+            .ForCtorParam(nameof(OrderDto.TotalAmount), opt => opt.MapFrom(src => src.TotalAmount))
+            .ForCtorParam(nameof(OrderDto.Status), opt => opt.MapFrom(src => src.Status.ToString()))
+            .ForCtorParam(nameof(OrderDto.ShippingAddress), opt => opt.MapFrom(src => src.ShippingAddress))
+            .ForCtorParam(nameof(OrderDto.CreatedAt), opt => opt.MapFrom(src => src.CreatedAtUtc))
+            .ForCtorParam(nameof(OrderDto.Items), opt => opt.MapFrom(src => src.Items));
     }
 }

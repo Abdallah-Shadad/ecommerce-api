@@ -11,6 +11,7 @@ public interface IUnitOfWork : IAsyncDisposable
     IRepository<ProductImage> ProductImages { get; }
     IRepository<Category> Categories { get; }
     IRepository<Cart> Carts { get; }
+    IRepository<CartItem> CartItems { get; }
     IRepository<Order> Orders { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

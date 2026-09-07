@@ -102,6 +102,10 @@ public class OrderService : IOrderService
                 await _unitOfWork.Orders.AddAsync(order, cancellationToken);
 
                 // 4. Clear shopping cart
+                foreach (var item in cart.Items.ToList())
+                {
+                    _unitOfWork.CartItems.Remove(item);
+                }
                 cart.Items.Clear();
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
