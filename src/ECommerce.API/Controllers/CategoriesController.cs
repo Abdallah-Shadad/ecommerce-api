@@ -1,7 +1,7 @@
-﻿using ECommerce.Application.DTOs.Category;
+using ECommerce.Application.DTOs.Category;
 using ECommerce.Application.Interfaces.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ECommerce.API.Controllers;
@@ -12,10 +12,17 @@ namespace ECommerce.API.Controllers;
 public class CategoriesController : ControllerBase
 {
     private readonly ICategoryService _categoryService;
+    private readonly IValidator<CategoryCreateDto> _createValidator;
+    private readonly IValidator<CategoryUpdateDto> _updateValidator;
 
-    public CategoriesController(ICategoryService categoryService)
+    public CategoriesController(
+        ICategoryService categoryService,
+        IValidator<CategoryCreateDto> createValidator,
+        IValidator<CategoryUpdateDto> updateValidator)
     {
         _categoryService = categoryService;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     [HttpGet]
@@ -40,7 +47,7 @@ public class CategoriesController : ControllerBase
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(CategoryDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
@@ -48,6 +55,10 @@ public class CategoriesController : ControllerBase
         [FromBody] CategoryCreateDto request,
         CancellationToken cancellationToken)
     {
+        var validationResult = await _createValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            throw new ValidationException(validationResult.Errors);
+
         var result = await _categoryService.CreateAsync(request, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
@@ -55,7 +66,7 @@ public class CategoriesController : ControllerBase
     [HttpPut("{id:int}")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(CategoryDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -65,6 +76,10 @@ public class CategoriesController : ControllerBase
         [FromBody] CategoryUpdateDto request,
         CancellationToken cancellationToken)
     {
+        var validationResult = await _updateValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            throw new ValidationException(validationResult.Errors);
+
         var result = await _categoryService.UpdateAsync(id, request, cancellationToken);
         return Ok(result);
     }

@@ -1,8 +1,9 @@
-﻿using ECommerce.Application.Common.Models;
+using ECommerce.Application.Common.Models;
 using ECommerce.Application.DTOs.Product;
 using ECommerce.Application.Interfaces.Services;
+using ECommerce.Shared.Constants;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ECommerce.API.Controllers;
@@ -13,19 +14,34 @@ namespace ECommerce.API.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly IProductService _productService;
+    private readonly IValidator<ProductCreateDto> _createValidator;
+    private readonly IValidator<ProductUpdateDto> _updateValidator;
+    private readonly IValidator<ProductQueryParameters> _queryValidator;
 
-    public ProductsController(IProductService productService)
+    public ProductsController(
+        IProductService productService,
+        IValidator<ProductCreateDto> createValidator,
+        IValidator<ProductUpdateDto> updateValidator,
+        IValidator<ProductQueryParameters> queryValidator)
     {
         _productService = productService;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
+        _queryValidator = queryValidator;
     }
 
     [HttpGet]
     [AllowAnonymous]
     [ProducesResponseType(typeof(PagedResult<ProductDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PagedResult<ProductDto>>> GetPaged(
         [FromQuery] ProductQueryParameters parameters,
         CancellationToken cancellationToken)
     {
+        var validationResult = await _queryValidator.ValidateAsync(parameters, cancellationToken);
+        if (!validationResult.IsValid)
+            throw new ValidationException(validationResult.Errors);
+
         var result = await _productService.GetPagedProductsAsync(parameters, cancellationToken);
         return Ok(result);
     }
@@ -43,7 +59,7 @@ public class ProductsController : ControllerBase
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ProductDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -52,6 +68,10 @@ public class ProductsController : ControllerBase
         [FromBody] ProductCreateDto request,
         CancellationToken cancellationToken)
     {
+        var validationResult = await _createValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            throw new ValidationException(validationResult.Errors);
+
         var result = await _productService.CreateAsync(request, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
@@ -59,7 +79,7 @@ public class ProductsController : ControllerBase
     [HttpPut("{id:int}")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ProductDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -69,6 +89,10 @@ public class ProductsController : ControllerBase
         [FromBody] ProductUpdateDto request,
         CancellationToken cancellationToken)
     {
+        var validationResult = await _updateValidator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            throw new ValidationException(validationResult.Errors);
+
         var result = await _productService.UpdateAsync(id, request, cancellationToken);
         return Ok(result);
     }
@@ -88,29 +112,54 @@ public class ProductsController : ControllerBase
     [HttpPost("{id:int}/images")]
     [Authorize(Roles = "Admin")]
     [Consumes("multipart/form-data")]
-    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProductImageDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UploadImage(
-    int id,
-    IFormFile file,
-    CancellationToken cancellationToken)
+    public async Task<ActionResult<ProductImageDto>> UploadImage(
+        int id,
+        IFormFile file,
+        CancellationToken cancellationToken)
     {
         if (file == null || file.Length == 0)
-            return BadRequest(new { message = "No file uploaded or file is empty." });
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Invalid File",
+                Detail = "No file was uploaded or file is empty."
+            });
 
-        // maximum file size limit of 5MB
-        const long maxFileSize = 5 * 1024 * 1024;
-        if (file.Length > maxFileSize)
-            return BadRequest(new { message = "File size exceeds the 5MB limit." });
+        if (file.Length > AppConstants.FileStorage.MaxFileSizeInBytes)
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "File Too Large",
+                Detail = $"File size exceeds the {AppConstants.FileStorage.MaxFileSizeInBytes / (1024 * 1024)}MB limit."
+            });
 
         await using var stream = file.OpenReadStream();
-        var imageUrl = await _productService.UploadImageAsync(
+        var result = await _productService.UploadImageAsync(
             id,
             stream,
             file.FileName,
             cancellationToken);
 
-        return Ok(new { imageUrl });
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    [HttpDelete("{id:int}/images/{imageId:int}")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteImage(
+        int id,
+        int imageId,
+        CancellationToken cancellationToken)
+    {
+        await _productService.DeleteImageAsync(id, imageId, cancellationToken);
+        return NoContent();
     }
 }

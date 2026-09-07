@@ -5,6 +5,7 @@ using ECommerce.Application.Interfaces.Persistence;
 using ECommerce.Application.Interfaces.Services;
 using ECommerce.Domain.Entities.Catalog;
 using ECommerce.Domain.Exceptions;
+using ECommerce.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 
 namespace ECommerce.Application.Services;
@@ -77,7 +78,7 @@ public class ProductService : IProductService
                 p.SKU,
                 p.CategoryId,
                 p.Category != null ? p.Category.Name : string.Empty,
-                p.Images.Select(img => img.ImageUrl).ToList()
+                p.Images.OrderBy(img => img.DisplayOrder).Select(img => img.ImageUrl).ToList()
             ))
             .ToListAsync(cancellationToken);
 
@@ -99,7 +100,7 @@ public class ProductService : IProductService
                 p.SKU,
                 p.CategoryId,
                 p.Category != null ? p.Category.Name : string.Empty,
-                p.Images.Select(img => img.ImageUrl).ToList()
+                p.Images.OrderBy(img => img.DisplayOrder).Select(img => img.ImageUrl).ToList()
             ))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -133,7 +134,7 @@ public class ProductService : IProductService
         };
 
         await _unitOfWork.Products.AddAsync(product, cancellationToken);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         return new ProductDto(
             product.Id,
@@ -174,11 +175,12 @@ public class ProductService : IProductService
         product.CategoryId = request.CategoryId;
 
         _unitOfWork.Products.Update(product);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var imageUrls = await _unitOfWork.Products.Query()
-            .Where(p => p.Id == id)
-            .SelectMany(p => p.Images.Select(i => i.ImageUrl))
+        var imageUrls = await _unitOfWork.ProductImages.Query()
+            .Where(img => img.ProductId == id)
+            .OrderBy(img => img.DisplayOrder)
+            .Select(img => img.ImageUrl)
             .ToListAsync(cancellationToken);
 
         return new ProductDto(
@@ -202,42 +204,68 @@ public class ProductService : IProductService
             throw new NotFoundException($"Product with ID {id} was not found.");
 
         _unitOfWork.Products.Remove(product);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-
-    public async Task<string> UploadImageAsync(
-    int productId,
-    Stream fileStream,
-    string originalFileName,
-    CancellationToken cancellationToken = default)
+    public async Task<ProductImageDto> UploadImageAsync(
+        int productId,
+        Stream fileStream,
+        string originalFileName,
+        CancellationToken cancellationToken = default)
     {
         var product = await _unitOfWork.Products.GetByIdAsync(productId, cancellationToken);
         if (product == null)
             throw new NotFoundException($"Product with ID {productId} was not found.");
 
-        // save the file using the file storage service
         var imageUrl = await _fileStorageService.SaveFileAsync(
             fileStream,
             originalFileName,
-            "products",
+            AppConstants.FileStorage.ProductsFolder,
             cancellationToken);
 
-        // create a new ProductImage entity and associate it with the product
+        var existingImagesCount = await _unitOfWork.ProductImages.Query()
+            .CountAsync(img => img.ProductId == productId, cancellationToken);
+
         var productImage = new ProductImage
         {
             ProductId = productId,
             ImageUrl = imageUrl,
+            IsPrimary = existingImagesCount == 0,
+            DisplayOrder = existingImagesCount + 1,
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        // add the new image to the product's Images collection and save changes
-        product.Images.Add(productImage);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.ProductImages.AddAsync(productImage, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return imageUrl;
+        return new ProductImageDto(
+            productImage.Id,
+            productImage.ImageUrl,
+            productImage.IsPrimary,
+            productImage.DisplayOrder,
+            productImage.ProductId
+        );
     }
 
+    public async Task DeleteImageAsync(int productId, int imageId, CancellationToken cancellationToken = default)
+    {
+        var productExists = await _unitOfWork.Products.Query()
+            .AnyAsync(p => p.Id == productId, cancellationToken);
+
+        if (!productExists)
+            throw new NotFoundException($"Product with ID {productId} was not found.");
+
+        var image = await _unitOfWork.ProductImages.Query()
+            .FirstOrDefaultAsync(img => img.Id == imageId && img.ProductId == productId, cancellationToken);
+
+        if (image == null)
+            throw new NotFoundException($"Product image with ID {imageId} for product {productId} was not found.");
+
+        await _fileStorageService.DeleteFileAsync(image.ImageUrl, cancellationToken);
+
+        _unitOfWork.ProductImages.Remove(image);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
 
     private static string GenerateSlug(string name)
     {
