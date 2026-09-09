@@ -1,6 +1,170 @@
-@ECommerce.API_HostAddress = http://localhost:5147
+@host = https://localhost:7163
+@api = {{host}}/api
 
-GET {{ECommerce.API_HostAddress}}/weatherforecast/
-Accept: application/json
+### =========================================================================
+### 1. AUTHENTICATION & IDENTITY
+### =========================================================================
 
-###
+### 1.1 Login as Default Admin
+# @name adminLogin
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "abdallah.shadad@ecommerce.com",
+  "password": "Admin123@"
+}
+
+### 1.2 Extract Admin Access Token
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+### 1.3 Login as Seeded Customer
+# @name customerLogin
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "adel.emam@ecommerce.com",
+  "password": "Customer123@"
+}
+
+### 1.4 Extract Customer Access Token
+@customerToken = {{customerLogin.response.body.accessToken}}
+@customerRefreshToken = {{customerLogin.response.body.refreshToken}}
+
+### 1.5 Register New Customer (Auto-provisions 1:1 Cart)
+POST {{api}}/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Omar El-Sherif",
+  "email": "omar.elsherif@example.com",
+  "password": "Customer123@",
+  "confirmPassword": "Customer123@"
+}
+
+### 1.6 Rotate Refresh Token (With Replay / Compromise Protection)
+POST {{api}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{customerRefreshToken}}"
+}
+
+### 1.7 Logout
+POST {{api}}/auth/logout
+Authorization: Bearer {{customerToken}}
+
+### =========================================================================
+### 2. CATEGORIES (CATALOG TAXONOMY)
+### =========================================================================
+
+### 2.1 Get All Categories (Public)
+GET {{api}}/categories
+
+### 2.2 Get Category By ID (Public)
+GET {{api}}/categories/1
+
+### 2.3 Create New Category (Admin Only)
+POST {{api}}/categories
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Smart Home & IoT",
+  "description": "Connected smart devices, sensors, and home automation systems."
+}
+
+### =========================================================================
+### 3. PRODUCTS (CATALOG & SEARCH)
+### =========================================================================
+
+### 3.1 Get Products (Public: Search, Filter, Sort, Paginate)
+GET {{api}}/products?searchTerm=phone&minPrice=100&maxPrice=2000&sortBy=price&descending=false&pageNumber=1&pageSize=10
+
+### 3.2 Get Product By ID (Public)
+GET {{api}}/products/1
+
+### 3.3 Create Product (Admin Only)
+POST {{api}}/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Sony WH-1000XM5 Wireless Headphones",
+  "description": "Industry-leading noise canceling wireless headphones with Auto NC Optimizer.",
+  "price": 399.99,
+  "stockQuantity": 50,
+  "sku": "SONY-WH1000XM5-BLK",
+  "categoryId": 1
+}
+
+### =========================================================================
+### 4. SHOPPING CART (CUSTOMER 1:1 INVARIANT)
+### =========================================================================
+
+### 4.1 Get Customer Cart (Customer Only)
+GET {{api}}/cart
+Authorization: Bearer {{customerToken}}
+
+### 4.2 Add Item To Cart (Customer Only)
+POST {{api}}/cart/items
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "quantity": 2
+}
+
+### 4.3 Update Cart Item Quantity
+PUT {{api}}/cart/items/1
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "quantity": 3
+}
+
+### =========================================================================
+### 5. ORDERS & CHECKOUT (HIGH-CONCURRENCY TRANSACTION)
+### =========================================================================
+
+### 5.1 Customer Checkout (Optimistic Concurrency & Atomic Lock)
+POST {{api}}/orders/checkout
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "shippingAddress": "123 Nile Avenue, Zamalek, Cairo, Egypt"
+}
+
+### 5.2 Get Customer Order History (IDOR Protected)
+GET {{api}}/orders?pageNumber=1&pageSize=10
+Authorization: Bearer {{customerToken}}
+
+### 5.3 Get Order By ID (Tenant-Isolated)
+GET {{api}}/orders/1
+Authorization: Bearer {{customerToken}}
+
+### 5.4 Cancel Order (Customer Self-Service / Restores Stock)
+POST {{api}}/orders/1/cancel
+Authorization: Bearer {{customerToken}}
+
+### =========================================================================
+### 6. ADMIN ORDER LIFECYCLE (FINITE STATE MACHINE)
+### =========================================================================
+
+### 6.1 Get All Orders (Admin Only)
+GET {{api}}/admin/orders?status=Confirmed&pageNumber=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+
+### 6.2 Advance Order Status (Enforces FSM Transition Matrix)
+# Valid Transitions: Confirmed -> Processing -> Shipped -> Delivered
+PUT {{api}}/admin/orders/1/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "Processing"
+}

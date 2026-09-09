@@ -19,16 +19,13 @@ src/ECommerce.API/wwwroot/uploads/*
 # 3. Environment & Local AppSettings Overrides
 appsettings.*.local.json
 appsettings.Local.json
-appsettings.Development.json
+appsettings.Production.json
 http-client.env.json
 *.http.user
 
 # 4. Logs folder
 logs/
 *.log
-
-# Docs
-Docs/
 
 # dotenv files
 .env
@@ -509,5 +506,4 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
-/src/ECommerce.API/appsettings.Development.json
-/src/ECommerce.API/appsettings.Development.json
+
